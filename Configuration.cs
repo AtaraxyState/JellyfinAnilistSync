@@ -28,17 +28,83 @@ public class WebhookConfig
 {
     public string Host { get; set; } = "localhost";
     public int Port { get; set; } = 5000;
-    public string Url { get; set; } = "";
 }
 
 public static class ConfigurationManager
 {
-    private static readonly string ConfigDirectory = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), 
-        "JellyfinAnilistSync"
-    );
+            private static readonly string ConfigDirectory = GetConfigDirectory();
     private static readonly string ConfigPath = Path.Combine(ConfigDirectory, "config.json");
     private static readonly string MissingSeriesPath = Path.Combine(ConfigDirectory, "missing_anilist_series.json");
+
+    private static string GetConfigDirectory()
+    {
+        // Try environment variable first (for custom config location)
+        var customConfigPath = Environment.GetEnvironmentVariable("CONFIG_PATH");
+        if (!string.IsNullOrEmpty(customConfigPath))
+        {
+            var customDir = Path.GetDirectoryName(customConfigPath);
+            if (!string.IsNullOrEmpty(customDir))
+            {
+                Console.WriteLine($"🎯 Using custom config directory: {customDir}");
+                return customDir;
+            }
+        }
+
+        // For Windows services, MyDocuments might not work, so we'll try multiple approaches
+        try
+        {
+            // First try the standard user documents folder
+            var documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            if (!string.IsNullOrEmpty(documentsPath) && Directory.Exists(documentsPath))
+            {
+                var configDir = Path.Combine(documentsPath, "JellyfinAnilistSync");
+                Console.WriteLine($"📁 Using Documents folder: {configDir}");
+                return configDir;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"⚠️ Cannot access Documents folder: {ex.Message}");
+        }
+
+        // Fallback 1: Try to get user profile manually
+        try
+        {
+            var userProfile = Environment.GetEnvironmentVariable("USERPROFILE");
+            if (!string.IsNullOrEmpty(userProfile))
+            {
+                var documentsPath = Path.Combine(userProfile, "Documents");
+                if (Directory.Exists(documentsPath))
+                {
+                    var configDir = Path.Combine(documentsPath, "JellyfinAnilistSync");
+                    Console.WriteLine($"📁 Using USERPROFILE Documents: {configDir}");
+                    return configDir;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"⚠️ Cannot access USERPROFILE Documents: {ex.Message}");
+        }
+
+        // Fallback 2: Use application directory
+        try
+        {
+            var appDirectory = AppDomain.CurrentDomain.BaseDirectory;
+            var configDir = Path.Combine(appDirectory, "config");
+            Console.WriteLine($"📁 Using application directory fallback: {configDir}");
+            return configDir;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"⚠️ Cannot access application directory: {ex.Message}");
+        }
+
+        // Last resort: current directory
+        var currentDir = Path.Combine(Directory.GetCurrentDirectory(), "config");
+        Console.WriteLine($"📁 Using current directory as last resort: {currentDir}");
+        return currentDir;
+    }
 
     public static Configuration LoadConfiguration()
     {
@@ -146,8 +212,7 @@ public static class ConfigurationManager
             Webhook = new WebhookConfig
             {
                 Host = "localhost",
-                Port = 5000,
-                Url = "http://localhost:5000"
+                Port = 5000
             },
             LibraryNames = new List<string> { "Animes", "Anime" }
         };

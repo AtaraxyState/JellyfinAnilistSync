@@ -49,7 +49,18 @@ A .NET application that automatically syncs your Jellyfin anime watching progres
 
 ## Configuration
 
-The application creates a configuration file at `%USERPROFILE%\Documents\JellyfinAnilistSync\config.json`:
+### Configuration File Location
+
+The application automatically determines the best location for the configuration file:
+
+1. **Custom Path**: If `CONFIG_PATH` environment variable is set, uses that location
+2. **User Documents**: `%USERPROFILE%\Documents\JellyfinAnilistSync\config.json` (default)
+3. **USERPROFILE Fallback**: `%USERPROFILE%\Documents\JellyfinAnilistSync\config.json` (for services)
+4. **Application Directory**: `[app-directory]\config\config.json` (last resort)
+
+The application will create a default configuration file if none exists and log which location it's using.
+
+### Configuration Structure
 
 ```json
 {
@@ -74,8 +85,7 @@ The application creates a configuration file at `%USERPROFILE%\Documents\Jellyfi
   },
   "webhook": {
     "host": "localhost",
-    "port": 5000,
-    "url": "http://localhost:5000"
+    "port": 5000
   },
   "libraryNames": ["Animes", "Anime"]
 }
@@ -107,6 +117,22 @@ Each user can control whether their entire library should be synced on login:
 
 Bulk updates can be resource-intensive and take time, so they default to disabled.
 
+### Environment Variables
+
+The application supports these environment variables:
+
+- `CONFIG_PATH`: Custom path to config.json file (useful for services)
+- `ASPNETCORE_URLS`: Override webhook listening URLs (e.g., `http://0.0.0.0:5001`)
+
+Examples:
+```bash
+# Set custom config location
+set CONFIG_PATH=C:\MyConfigs\jellyfin-anilist-sync.json
+
+# Override listening address
+set ASPNETCORE_URLS=http://0.0.0.0:5001
+```
+
 ### Getting Jellyfin API Key
 
 1. Go to Jellyfin Admin Dashboard
@@ -129,16 +155,91 @@ You can run this as a Windows service using NSSM or similar tools:
 # Build and publish
 dotnet publish -c Release -o ./publish
 
-# Install as service with NSSM
-nssm install JellyfinAnilistSync "C:\path\to\dotnet.exe" "C:\path\to\publish\JellyfinAnilistSync.dll"
+# Install as service with NSSM (update paths to match your system)
+nssm install JellyfinAnilistSync "C:\Program Files\dotnet\dotnet.exe" "C:\path\to\your\publish\JellyfinAnilistSync.dll"
+
+# Set working directory to where config.json is located
+nssm set JellyfinAnilistSync AppDirectory "C:\path\to\your\publish"
+
+# Optional: Set startup type to automatic
+nssm set JellyfinAnilistSync Start SERVICE_AUTO_START
+
+# Start the service
 nssm start JellyfinAnilistSync
 ```
 
-The application will read the host and port from your `config.json` file. If you need to override the configuration, you can still use environment variables:
+The application will automatically find your configuration using the location priority described above.
+
+### Service Configuration Options
 
 ```bash
 # Optional: Override URL via environment variable
 nssm set JellyfinAnilistSync AppEnvironmentExtra ASPNETCORE_URLS=http://0.0.0.0:5001
+
+# Optional: Set custom config location (useful for services)
+nssm set JellyfinAnilistSync AppEnvironmentExtra CONFIG_PATH="C:\custom\path\config.json"
+```
+
+### Troubleshooting Service Configuration
+
+If the service can't find your configuration file, check the Windows Event Log or service logs. The application will log which configuration path it's using:
+
+- ✅ `📁 Using Documents folder: C:\Users\[User]\Documents\JellyfinAnilistSync`
+- ✅ `📁 Using USERPROFILE Documents: C:\Users\[User]\Documents\JellyfinAnilistSync`
+- ⚠️ `📁 Using application directory fallback: D:\Path\To\App\config`
+
+For services that can't access user profiles, you can:
+
+1. **Use custom config path**: Set `CONFIG_PATH` environment variable
+2. **Copy config to app directory**: Place `config.json` in the publish folder
+
+### Service Logging
+
+Configure NSSM to capture application logs for easier debugging:
+
+```bash
+# Set up log files (run as Administrator)
+nssm set JellyfinAnilistSync AppStdout "C:\Logs\JellyfinAnilistSync\stdout.log"
+nssm set JellyfinAnilistSync AppStderr "C:\Logs\JellyfinAnilistSync\stderr.log"
+
+# Create the log directory first
+mkdir "C:\Logs\JellyfinAnilistSync"
+
+# Optional: Set log file rotation (restart service when files get large)
+nssm set JellyfinAnilistSync AppRotateFiles 1
+nssm set JellyfinAnilistSync AppRotateOnline 1
+nssm set JellyfinAnilistSync AppRotateSeconds 86400    # Rotate daily
+nssm set JellyfinAnilistSync AppRotateBytes 10485760   # Rotate at 10MB
+```
+
+### Monitoring Logs
+
+Monitor service logs in real-time using PowerShell:
+
+```powershell
+# Monitor stdout log (application output)
+Get-Content "C:\Logs\JellyfinAnilistSync\stdout.log" -Wait -Tail 20
+
+# Monitor stderr log (errors)
+Get-Content "C:\Logs\JellyfinAnilistSync\stderr.log" -Wait -Tail 20
+
+# Monitor both logs simultaneously (requires PowerShell 7+)
+Get-Content "C:\Logs\JellyfinAnilistSync\stdout.log", "C:\Logs\JellyfinAnilistSync\stderr.log" -Wait -Tail 10
+```
+
+**Alternative**: The application also logs to Windows Event Log, viewable in Event Viewer under **Windows Logs → Application**.
+
+### Service Management
+
+```bash
+# Check service status
+nssm status JellyfinAnilistSync
+
+# Stop the service
+nssm stop JellyfinAnilistSync
+
+# Remove the service
+nssm remove JellyfinAnilistSync confirm
 ```
 
 ## File Structure
