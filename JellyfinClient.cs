@@ -297,7 +297,7 @@ public class JellyfinClient
         return episodes;
     }
 
-    public async Task<SyncResult> SyncSeriesProgressToAniListAsync(string seriesId, string jellyfinUserId, AnilistClient.AniListClient aniListClient)
+    public async Task<SyncResult> SyncSeriesProgressToAniListAsync(string seriesId, string jellyfinUserId, AnilistClient.AniListClient aniListClient, bool autoAddToList = true)
     {
         var result = new SyncResult { SeriesId = seriesId };
         
@@ -388,24 +388,29 @@ public class JellyfinClient
             
             // Step 2: Get last watched episode from Jellyfin
             var lastWatched = await GetLastWatchedEpisodeAsync(seriesId, jellyfinUserId);
+            
+            int progressToSet = 0;
             if (lastWatched == null)
             {
-                result.Status = SyncStatus.NoProgress;
-                result.Message = "No episodes watched in Jellyfin";
-                Console.WriteLine($"❌ {result.Message}");
-                return result;
+                Console.WriteLine("📺 No episodes watched - setting progress to 0");
+                result.LastWatchedEpisode = 0;
+                result.LastWatchedSeason = 0;
+                progressToSet = 0;
+            }
+            else
+            {
+                result.LastWatchedEpisode = lastWatched.EpisodeNumber;
+                result.LastWatchedSeason = lastWatched.SeasonNumber;
+                progressToSet = lastWatched.EpisodeNumber;
+                Console.WriteLine($"✅ Last watched: S{lastWatched.SeasonNumber:D2}E{lastWatched.EpisodeNumber:D2} - {lastWatched.EpisodeName}");
             }
             
-            result.LastWatchedEpisode = lastWatched.EpisodeNumber;
-            result.LastWatchedSeason = lastWatched.SeasonNumber;
-            Console.WriteLine($"✅ Last watched: S{lastWatched.SeasonNumber:D2}E{lastWatched.EpisodeNumber:D2} - {lastWatched.EpisodeName}");
-            
             // Step 3: Update AniList progress (will add to list if needed)
-            var updateResponse = await aniListClient.UpdateProgressByAniListIdAsync(aniListIdInt, lastWatched.EpisodeNumber);
+            var updateResponse = await aniListClient.UpdateProgressByAniListIdAsync(aniListIdInt, progressToSet, autoAddToList);
             
             // Set appropriate status based on how we found the AniList ID
             result.Status = !string.IsNullOrEmpty(aniListId) ? SyncStatus.Success : SyncStatus.SuccessViaSearch;
-            result.Message = $"Successfully synced progress to episode {lastWatched.EpisodeNumber}";
+            result.Message = $"Successfully synced progress to episode {progressToSet}";
             result.AniListResponse = updateResponse;
             
             Console.WriteLine($"✅ Sync completed successfully!");
@@ -421,7 +426,7 @@ public class JellyfinClient
         }
     }
 
-    public async Task<List<SyncResult>> SyncAllSeriesInLibraryAsync(string libraryId, string jellyfinUserId, AnilistClient.AniListClient aniListClient)
+    public async Task<List<SyncResult>> SyncAllSeriesInLibraryAsync(string libraryId, string jellyfinUserId, AnilistClient.AniListClient aniListClient, bool autoAddToList = true)
     {
         var results = new List<SyncResult>();
         
@@ -437,7 +442,7 @@ public class JellyfinClient
             {
                 Console.WriteLine($"\n📺 Processing: {series.Name}");
                 
-                var result = await SyncSeriesProgressToAniListAsync(series.Id, jellyfinUserId, aniListClient);
+                var result = await SyncSeriesProgressToAniListAsync(series.Id, jellyfinUserId, aniListClient, autoAddToList);
                 result.SeriesName = series.Name;
                 results.Add(result);
                 
@@ -450,14 +455,12 @@ public class JellyfinClient
             var successViaSearch = results.Count(r => r.Status == SyncStatus.SuccessViaSearch);
             var failed = results.Count(r => r.Status == SyncStatus.Error);
             var noAniListId = results.Count(r => r.Status == SyncStatus.NoAniListId);
-            var noProgress = results.Count(r => r.Status == SyncStatus.NoProgress);
             
             Console.WriteLine($"\n📊 Bulk sync completed:");
             Console.WriteLine($"   ✅ Successful (provider ID): {successful}");
             Console.WriteLine($"   🔍 Successful (via search): {successViaSearch}");
             Console.WriteLine($"   ❌ Failed: {failed}");
             Console.WriteLine($"   🆔 No AniList found: {noAniListId}");
-            Console.WriteLine($"   📺 No progress: {noProgress}");
             
             // Show details for series without AniList IDs
             if (noAniListId > 0)

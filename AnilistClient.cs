@@ -24,7 +24,7 @@ public class AniListClient
         return !string.IsNullOrEmpty(_lastSearchedName) ? _lastSearchedName : CleanAnimeName(originalName);
     }
 
-    public async Task<string> UpdateProgressByAniListIdAsync(int aniListId, int progress)
+    public async Task<string> UpdateProgressByAniListIdAsync(int aniListId, int progress, bool autoAddToList = true)
     {
         // Find the media list entry for this AniList media ID
         var findAnimeQuery = new
@@ -84,6 +84,11 @@ public class AniListClient
         
         if (!media.TryGetProperty("mediaListEntry", out var mediaListEntry) || mediaListEntry.ValueKind == JsonValueKind.Null)
         {
+            if (!autoAddToList)
+            {
+                throw new InvalidOperationException($"Anime '{animeTitle}' not in your AniList and auto-add is disabled. Please add it manually or enable auto-add.");
+            }
+
             // Anime not in list - add it first
             Console.WriteLine($"📋 Anime '{animeTitle}' not in your list. Adding it first...");
             

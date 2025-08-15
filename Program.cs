@@ -124,6 +124,9 @@ async Task HandleUserDataSavedAsync(JsonElement root, ILogger logger)
         Console.WriteLine($"🔥 BEFORE AniList update for user: {username}");
         logger.LogInformation("Updating {Username}'s linked AniList account", username);
         
+        // Get user's auto-add setting
+        var autoAdd = JellyfinAnilistSync.ConfigurationManager.ShouldAutoAddForUser(config, username);
+        
         if (played)
         {
             // Episode was marked as played - sync this specific episode
@@ -132,7 +135,7 @@ async Task HandleUserDataSavedAsync(JsonElement root, ILogger logger)
             if (!string.IsNullOrEmpty(anilistId) && int.TryParse(anilistId, out int anilistIdInt))
             {
                 Console.WriteLine($"🔍 Episode played - updating AniList to episode {episodeNumber}");
-                await userAniListClient.UpdateProgressByAniListIdAsync(anilistIdInt, episodeNumber);
+                await userAniListClient.UpdateProgressByAniListIdAsync(anilistIdInt, episodeNumber, autoAdd);
                 Console.WriteLine("✅ AFTER AniList update");
             }
             else
@@ -148,7 +151,7 @@ async Task HandleUserDataSavedAsync(JsonElement root, ILogger logger)
             var userId = GetStringProperty(root, "UserId");
             if (!string.IsNullOrEmpty(userId))
             {
-                var syncResult = await jellyfinClient.SyncSeriesProgressToAniListAsync(seriesId, userId, userAniListClient);
+                var syncResult = await jellyfinClient.SyncSeriesProgressToAniListAsync(seriesId, userId, userAniListClient, autoAdd);
                 
                 if (syncResult.Status == JellyfinApi.SyncStatus.Success || syncResult.Status == JellyfinApi.SyncStatus.SuccessViaSearch)
                 {
@@ -192,8 +195,11 @@ async Task HandleAuthenticationSuccess(JsonElement root, ILogger logger)
     var client = GetStringProperty(root, "Client");
     var userId = GetStringProperty(root, "UserId");
 
-    // Sync for configured users on login
-    if (!string.IsNullOrEmpty(username) && aniListClients.TryGetValue(username, out var userAniListClient))
+    // Check if bulk update is enabled for this user
+    var shouldBulkUpdate = JellyfinAnilistSync.ConfigurationManager.ShouldBulkUpdateForUser(config, username);
+    
+    // Sync for configured users on login (if bulk update is enabled)
+    if (!string.IsNullOrEmpty(username) && aniListClients.TryGetValue(username, out var userAniListClient) && shouldBulkUpdate)
     {
         try
         {
@@ -210,7 +216,11 @@ async Task HandleAuthenticationSuccess(JsonElement root, ILogger logger)
             if (animeLibrary != null)
             {
                 Console.WriteLine($"📚 Found library: {animeLibrary.Name} (ID: {animeLibrary.ItemId})");
-                await jellyfinClient.SyncAllSeriesInLibraryAsync(animeLibrary.ItemId, userId, userAniListClient);
+                
+                // Get user's auto-add setting for bulk sync
+                var autoAdd = JellyfinAnilistSync.ConfigurationManager.ShouldAutoAddForUser(config, username);
+                
+                await jellyfinClient.SyncAllSeriesInLibraryAsync(animeLibrary.ItemId, userId, userAniListClient, autoAdd);
             }
             else
             {
@@ -232,9 +242,17 @@ async Task HandleAuthenticationSuccess(JsonElement root, ILogger logger)
     }
     else
     {
-        if (!aniListClients.ContainsKey(username))
+        if (string.IsNullOrEmpty(username))
+        {
+            Console.WriteLine($"❌ No username found");
+        }
+        else if (!aniListClients.ContainsKey(username))
         {
             Console.WriteLine($"❌ No AniList client configured for user: {username}");
+        }
+        else if (!shouldBulkUpdate)
+        {
+            Console.WriteLine($"💤 Bulk update disabled for user: {username}");
         }
     }
 

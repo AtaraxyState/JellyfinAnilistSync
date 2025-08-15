@@ -20,6 +20,8 @@ public class AniListConfig
 {
     public string GlobalToken { get; set; } = "";
     public Dictionary<string, string> UserTokens { get; set; } = new();
+    public Dictionary<string, bool> UserAutoAdd { get; set; } = new();
+    public Dictionary<string, bool> UserBulkUpdate { get; set; } = new();
 }
 
 public class WebhookConfig
@@ -131,6 +133,14 @@ public static class ConfigurationManager
                 UserTokens = new Dictionary<string, string>
                 {
                     { "YourJellyfinUsername", "YOUR_ANILIST_TOKEN_HERE" }
+                },
+                UserAutoAdd = new Dictionary<string, bool>
+                {
+                    { "YourJellyfinUsername", true }
+                },
+                UserBulkUpdate = new Dictionary<string, bool>
+                {
+                    { "YourJellyfinUsername", true }
                 }
             },
             Webhook = new WebhookConfig
@@ -162,6 +172,34 @@ public static class ConfigurationManager
         // No token available
         Console.WriteLine($"❌ No AniList token found for user: {jellyfinUsername}");
         return "";
+    }
+
+    public static bool ShouldAutoAddForUser(Configuration config, string jellyfinUsername)
+    {
+        // Check if user has specific auto-add setting
+        if (config.AniList.UserAutoAdd.TryGetValue(jellyfinUsername, out var autoAdd))
+        {
+            Console.WriteLine($"🎯 Auto-add setting for {jellyfinUsername}: {autoAdd}");
+            return autoAdd;
+        }
+
+        // Default to true if not specified
+        Console.WriteLine($"🌐 Using default auto-add (true) for: {jellyfinUsername}");
+        return true;
+    }
+
+    public static bool ShouldBulkUpdateForUser(Configuration config, string jellyfinUsername)
+    {
+        // Check if user has specific bulk update setting
+        if (config.AniList.UserBulkUpdate.TryGetValue(jellyfinUsername, out var bulkUpdate))
+        {
+            Console.WriteLine($"🎯 Bulk update setting for {jellyfinUsername}: {bulkUpdate}");
+            return bulkUpdate;
+        }
+
+        // Default to false if not specified (bulk updates can be intensive)
+        Console.WriteLine($"🌐 Using default bulk update (false) for: {jellyfinUsername}");
+        return false;
     }
 
     public static void AddMissingSeries(MissingSeries series)

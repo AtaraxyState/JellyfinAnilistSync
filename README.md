@@ -62,6 +62,14 @@ The application creates a configuration file at `%USERPROFILE%\Documents\Jellyfi
     "userTokens": {
       "JellyfinUsername1": "anilist-token-1",
       "JellyfinUsername2": "anilist-token-2"
+    },
+    "userAutoAdd": {
+      "JellyfinUsername1": true,
+      "JellyfinUsername2": false
+    },
+    "userBulkUpdate": {
+      "JellyfinUsername1": true,
+      "JellyfinUsername2": false
     }
   },
   "webhook": {
@@ -78,6 +86,26 @@ The application creates a configuration file at `%USERPROFILE%\Documents\Jellyfi
 1. Go to [AniList Developer Settings](https://anilist.co/settings/developer)
 2. Create a new API client
 3. Generate access tokens for each user
+
+### User Settings
+
+#### Auto-Add Settings (`userAutoAdd`)
+
+Each user can control whether anime should be automatically added to their AniList:
+
+- `true` (default): Automatically adds anime to AniList when first encountered
+- `false`: Only updates progress for anime already in the user's list
+
+If auto-add is disabled and an anime isn't in the user's list, the sync will fail with a helpful error message.
+
+#### Bulk Update Settings (`userBulkUpdate`)
+
+Each user can control whether their entire library should be synced on login:
+
+- `true`: Triggers full library sync when user logs into Jellyfin
+- `false` (default): Only individual episode changes are synced
+
+Bulk updates can be resource-intensive and take time, so they default to disabled.
 
 ### Getting Jellyfin API Key
 
@@ -103,8 +131,14 @@ dotnet publish -c Release -o ./publish
 
 # Install as service with NSSM
 nssm install JellyfinAnilistSync "C:\path\to\dotnet.exe" "C:\path\to\publish\JellyfinAnilistSync.dll"
-nssm set JellyfinAnilistSync AppEnvironmentExtra ASPNETCORE_URLS=http://0.0.0.0:5001
 nssm start JellyfinAnilistSync
+```
+
+The application will read the host and port from your `config.json` file. If you need to override the configuration, you can still use environment variables:
+
+```bash
+# Optional: Override URL via environment variable
+nssm set JellyfinAnilistSync AppEnvironmentExtra ASPNETCORE_URLS=http://0.0.0.0:5001
 ```
 
 ## File Structure
