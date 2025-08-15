@@ -1,0 +1,17 @@
+{
+  "ServerId": "16588a9f062a40c4966586b1d220bffc",
+  "ServerName": "Rain",
+  "ServerVersion": "10.10.3",
+  "ServerUrl": "",
+  "NotificationType": "AuthenticationSuccess",
+  "NotificationUsername": "Rain",
+  "UserId": "02700c8344d542619b39319296c0d4c7",
+  "LastLoginDate": "2025-08-15T21:20:24.6586566Z",
+  "LastActivityDate": "2025-08-15T21:20:24.6703929Z",
+  "Id": "9cb4553bed5350f41ab2c507d627a56b",
+  "Client": "Jellyfin Web",
+  "LastPlaybackCheckIn": "0001-01-01T00:00:00.0000000Z",
+  "DeviceName": "Chrome",
+  "DeviceId": "TW96aWxsYS81LjAgKFdpbmRvd3MgTlQgMTAuMDsgV2luNjQ7IHg2NCkgQXBwbGVXZWJLaXQvNTM3LjM2IChLSFRNTCwgbGlrZSBHZWNrbykgQ2hyb21lLzEzOC4wLjAuMCBTYWZhcmkvNTM3LjM2fDE3NTQxMzE2NjQxNjM1",
+  "RemoteEndPoint": "127.0.0.1"
+}
