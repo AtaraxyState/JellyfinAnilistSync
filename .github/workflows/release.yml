@@ -1,0 +1,178 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Triggers on version tags like v1.0.0, v1.2.3, etc.
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+        
+    - name: Extract version from tag
+      id: get_version
+      shell: powershell
+      run: |
+        $version = $env:GITHUB_REF -replace 'refs/tags/', ''
+        echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+        echo "Version: $version"
+        
+    - name: Restore dependencies
+      run: dotnet restore
+      
+    - name: Build Release (Self-Contained)
+      run: dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true --output ./release-build
+      
+    - name: Create release directory structure
+      shell: powershell
+      run: |
+        $releaseDir = "JellyfinAnilistSync-${{ steps.get_version.outputs.VERSION }}-win-x64"
+        New-Item -ItemType Directory -Path $releaseDir -Force
+        
+        # Copy main executable
+        Copy-Item "release-build/JellyfinAnilistSync.exe" -Destination "$releaseDir/"
+        
+        # Copy configuration files
+        Copy-Item "config.json.example" -Destination "$releaseDir/"
+        
+        # Copy installation scripts
+        Copy-Item "install-service.bat" -Destination "$releaseDir/"
+        Copy-Item "uninstall-service.bat" -Destination "$releaseDir/"
+        
+        # Copy README
+        Copy-Item "README.md" -Destination "$releaseDir/"
+        
+        # Create empty Logs directory
+        New-Item -ItemType Directory -Path "$releaseDir/Logs" -Force
+        
+        # Create a basic .gitkeep file for Logs directory
+        New-Item -ItemType File -Path "$releaseDir/Logs/.gitkeep" -Force
+        
+        # Create quick start guide
+        @"
+        JellyfinAnilistSync - Quick Start Guide
+        =====================================
+        
+        1. Prerequisites:
+           - Download and install NSSM: https://nssm.cc/download
+           - Add NSSM to your PATH environment variable
+        
+        2. Installation:
+           - Run install-service.bat as Administrator
+           - Follow the interactive setup prompts
+           - Configure your Jellyfin webhooks to point to the webhook URL
+        
+        3. Service Management:
+           - Start: nssm start JellyfinAnilistSync
+           - Stop: nssm stop JellyfinAnilistSync
+           - Status: nssm status JellyfinAnilistSync
+           - Logs: Check the Logs/ directory
+        
+        4. Configuration:
+           - Main config: config.json (created during installation)
+           - Example: config.json.example
+           - Environment variables: CONFIG_PATH, ASPNETCORE_URLS
+        
+        5. Uninstall:
+           - Run uninstall-service.bat
+           - Manually delete this directory if desired
+        
+        For detailed documentation, see README.md
+        "@ | Out-File -FilePath "$releaseDir/QUICK_START.txt" -Encoding UTF8
+        
+        echo "RELEASE_DIR=$releaseDir" >> $env:GITHUB_ENV
+        
+    - name: Create ZIP archive
+      shell: powershell
+      run: |
+        $zipFile = "${{ env.RELEASE_DIR }}.zip"
+        Compress-Archive -Path "${{ env.RELEASE_DIR }}/*" -DestinationPath $zipFile -Force
+        echo "ZIP_FILE=$zipFile" >> $env:GITHUB_ENV
+        
+        # Show what's in the release
+        echo "Release contents:"
+        Get-ChildItem -Recurse "${{ env.RELEASE_DIR }}" | Select-Object FullName, Length
+        
+    - name: Generate release notes
+      id: release_notes
+      shell: powershell
+      run: |
+        $version = "${{ steps.get_version.outputs.VERSION }}"
+        $releaseNotes = @"
+        ## JellyfinAnilistSync $version
+        
+        ### 📦 What's Included
+        - **JellyfinAnilistSync.exe** - Self-contained executable (no .NET runtime required)
+        - **install-service.bat** - Interactive installation script
+        - **uninstall-service.bat** - Clean removal script  
+        - **config.json.example** - Configuration template
+        - **README.md** - Complete documentation
+        - **QUICK_START.txt** - Quick setup guide
+        - **Logs/** - Directory for log files
+        
+        ### 🚀 Quick Installation
+        1. Download and extract the ZIP file
+        2. Install NSSM: https://nssm.cc/download
+        3. Run ``install-service.bat`` as Administrator
+        4. Follow the interactive setup prompts
+        5. Configure Jellyfin webhooks to point to your webhook URL
+        
+        ### 🔧 Features
+        - **Automatic sync** of anime watch progress from Jellyfin to AniList
+        - **Multi-user support** with individual settings per user
+        - **Bulk library sync** on user login (optional)
+        - **Auto-add anime** to AniList when not in library (optional)
+        - **Windows Service** deployment via NSSM
+        - **Comprehensive logging** with rotation
+        - **Webhook handling** for real-time updates
+        
+        ### 📋 Requirements
+        - Windows (any version that supports .NET 8)
+        - NSSM (Non-Sucking Service Manager)
+        - Jellyfin server with webhook plugin
+        - AniList account(s) with API access
+        
+        ### 🆕 What's New
+        See commit history for detailed changes in this release.
+        
+        ### 💡 Support
+        - Documentation: See README.md in the release package
+        - Issues: Create an issue on GitHub
+        - Logs: Check the Logs/ directory for troubleshooting
+        "@
+        
+        # Save to file and environment variable
+        $releaseNotes | Out-File -FilePath "release-notes.md" -Encoding UTF8
+        
+        # For GitHub output (escape newlines)
+        $escapedNotes = $releaseNotes -replace "`r`n", "%0A" -replace "`n", "%0A"
+        echo "RELEASE_NOTES=$escapedNotes" >> $env:GITHUB_OUTPUT
+        
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ steps.get_version.outputs.VERSION }}
+        name: "JellyfinAnilistSync ${{ steps.get_version.outputs.VERSION }}"
+        body: ${{ steps.release_notes.outputs.RELEASE_NOTES }}
+        files: ${{ env.ZIP_FILE }}
+        draft: false
+        prerelease: false
+        generate_release_notes: true  # This adds commit history
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: JellyfinAnilistSync-${{ steps.get_version.outputs.VERSION }}
+        path: ${{ env.RELEASE_DIR }}
+        retention-days: 30

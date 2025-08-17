@@ -1,0 +1,17 @@
+http://localhost:8096
+test-api-key-12345
+localhost
+5001
+Anime
+TV Shows
+
+testuser1
+test-token-anilist-123
+y
+y
+y
+testuser2
+test-token-anilist-456
+n
+n
+n

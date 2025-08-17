@@ -1,0 +1,70 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Build Debug
+      run: dotnet build -c Debug --no-restore
+
+    - name: Build Release
+      run: dotnet build -c Release --no-restore
+
+    - name: Test publish (Self-Contained)
+      run: dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true --output ./test-publish
+
+    - name: Verify executable exists
+      shell: powershell
+      run: |
+        if (Test-Path "test-publish/JellyfinAnilistSync.exe") {
+          echo "✅ Executable created successfully"
+          $size = (Get-Item "test-publish/JellyfinAnilistSync.exe").Length / 1MB
+          echo "📦 Executable size: $([math]::Round($size, 2)) MB"
+        } else {
+          echo "❌ Executable not found!"
+          exit 1
+        }
+
+    - name: Verify configuration files
+      shell: powershell
+      run: |
+        $requiredFiles = @(
+          "config.json.example",
+          "install-service.bat", 
+          "uninstall-service.bat",
+          "README.md"
+        )
+        
+        foreach ($file in $requiredFiles) {
+          if (Test-Path $file) {
+            echo "✅ $file exists"
+          } else {
+            echo "❌ $file missing!"
+            exit 1
+          }
+        }
+
+    - name: Upload build artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: JellyfinAnilistSync-build-${{ github.sha }}
+        path: test-publish/
+        retention-days: 7

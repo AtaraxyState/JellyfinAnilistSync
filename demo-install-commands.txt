@@ -1,0 +1,24 @@
+=== NSSM Commands that WOULD be executed ===
+
+nssm install JellyfinAnilistSyncTEST "D:\Documents\Git\JellyfinAnilistSync\JellyfinAnilistSync.exe"
+nssm set JellyfinAnilistSyncTEST AppDirectory "D:\Documents\Git\JellyfinAnilistSync\"
+nssm set JellyfinAnilistSyncTEST DisplayName "Jellyfin AniList Sync Service (TEST)"
+nssm set JellyfinAnilistSyncTEST Description "TEST - Syncs Jellyfin anime progress with AniList"
+nssm set JellyfinAnilistSyncTEST Start SERVICE_AUTO_START
+
+=== Logging Configuration ===
+nssm set JellyfinAnilistSyncTEST AppStdout "D:\Documents\Git\JellyfinAnilistSync\Logs\service-output.log"
+nssm set JellyfinAnilistSyncTEST AppStderr "D:\Documents\Git\JellyfinAnilistSync\Logs\service-error.log"
+nssm set JellyfinAnilistSyncTEST AppRotateFiles 1
+nssm set JellyfinAnilistSyncTEST AppRotateOnline 1
+nssm set JellyfinAnilistSyncTEST AppRotateSeconds 86400
+nssm set JellyfinAnilistSyncTEST AppRotateBytes 1048576
+
+=== Environment Variables ===
+nssm set JellyfinAnilistSyncTEST AppEnvironmentExtra CONFIG_PATH="D:\Documents\Git\JellyfinAnilistSync\test-config.json" ASPNETCORE_URLS="http://localhost:5001"
+
+=== Service Management Commands ===
+nssm start JellyfinAnilistSyncTEST
+nssm stop JellyfinAnilistSyncTEST
+nssm status JellyfinAnilistSyncTEST
+nssm remove JellyfinAnilistSyncTEST confirm

@@ -1,0 +1,22 @@
+{
+  "Jellyfin": {
+    "ServerUrl": "http://localhost:8096",
+    "ApiKey": "your-jellyfin-api-key-here"
+  },
+  "AniList": {
+    "UserTokens": {
+      "your-jellyfin-username": "your-anilist-access-token-here"
+    }
+  },
+  "Webhook": {
+    "Host": "localhost",
+    "Port": 5000
+  },
+  "LibraryNames": ["Anime", "TV Shows"],
+  "UserSettings": {
+    "your-jellyfin-username": {
+      "userAutoAdd": true,
+      "userBulkUpdate": true
+    }
+  }
+}
