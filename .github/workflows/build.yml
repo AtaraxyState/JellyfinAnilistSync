@@ -35,11 +35,11 @@ jobs:
       shell: powershell
       run: |
         if (Test-Path "test-publish/JellyfinAnilistSync.exe") {
-          echo "✅ Executable created successfully"
+          Write-Host "Executable created successfully" -ForegroundColor Green
           $size = (Get-Item "test-publish/JellyfinAnilistSync.exe").Length / 1MB
-          echo "📦 Executable size: $([math]::Round($size, 2)) MB"
+          Write-Host "Executable size: $([math]::Round($size, 2)) MB" -ForegroundColor Cyan
         } else {
-          echo "❌ Executable not found!"
+          Write-Host "Executable not found!" -ForegroundColor Red
           exit 1
         }
 
@@ -55,9 +55,9 @@ jobs:
         
         foreach ($file in $requiredFiles) {
           if (Test-Path $file) {
-            echo "✅ $file exists"
+            Write-Host "$file exists" -ForegroundColor Green
           } else {
-            echo "❌ $file missing!"
+            Write-Host "$file missing!" -ForegroundColor Red
             exit 1
           }
         }

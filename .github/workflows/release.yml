@@ -99,7 +99,7 @@ jobs:
         echo "ZIP_FILE=$zipFile" >> $env:GITHUB_ENV
         
         # Show what's in the release
-        echo "Release contents:"
+        Write-Host "Release contents:" -ForegroundColor Cyan
         Get-ChildItem -Recurse "${{ env.RELEASE_DIR }}" | Select-Object FullName, Length
         
     - name: Generate release notes
