@@ -108,6 +108,7 @@ async Task HandleUserDataSavedAsync(JsonElement root, ILogger logger)
     var played = GetBoolProperty(root, "Played");
     var saveReason = GetStringProperty(root, "SaveReason");
     var username = GetStringProperty(root, "NotificationUsername");
+    var userId = GetStringProperty(root, "UserId");
 
     Console.WriteLine($"   👤 User: {username}");
     Console.WriteLine($"   📺 Series: {seriesName}");
@@ -134,8 +135,12 @@ async Task HandleUserDataSavedAsync(JsonElement root, ILogger logger)
             
             if (!string.IsNullOrEmpty(anilistId) && int.TryParse(anilistId, out int anilistIdInt))
             {
-                Console.WriteLine($"🔍 Episode played - updating AniList to episode {episodeNumber}");
-                await userAniListClient.UpdateProgressByAniListIdAsync(anilistIdInt, episodeNumber, autoAdd);
+                // Get the last watched episode for the series, will be null if the user doesnt have the series in their library
+                var lastWatched = await jellyfinClient.GetLastWatchedEpisodeAsync(seriesId, userId);
+                var progressEpisode = lastWatched?.EpisodeNumber ?? episodeNumber;
+
+                Console.WriteLine($"🔍 Episode played - updating AniList to episode {progressEpisode}");
+                await userAniListClient.UpdateProgressByAniListIdAsync(anilistIdInt, progressEpisode, autoAdd);
                 Console.WriteLine("✅ AFTER AniList update");
             }
             else
@@ -148,7 +153,6 @@ async Task HandleUserDataSavedAsync(JsonElement root, ILogger logger)
             // Episode was unmarked as played - sync overall series progress
             Console.WriteLine($"🔄 Episode unmarked - syncing overall series progress");
             
-            var userId = GetStringProperty(root, "UserId");
             if (!string.IsNullOrEmpty(userId))
             {
                 var syncResult = await jellyfinClient.SyncSeriesProgressToAniListAsync(seriesId, userId, userAniListClient, autoAdd);
