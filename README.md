@@ -3,6 +3,18 @@
 A .NET application that automatically syncs your Jellyfin anime watching progress to AniList.
 This can be run has a cmd app or a windows service using NSSM.
 
+## Table of Contents
+
+- [Features](#features)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [How It Works](#how-it-works)
+- [Sonarr Integration (Optional)](#sonarr-integration-optional)
+- [Running as a Service](#running-as-a-service)
+- [File Structure](#file-structure)
+- [Contributing](#contributing)
+- [License](#license)
+
 ## Features
 
 - 🎬 **Real-time sync** - Updates AniList when episodes are marked as watched/unwatched in Jellyfin
