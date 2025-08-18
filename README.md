@@ -150,7 +150,9 @@ set ASPNETCORE_URLS=http://0.0.0.0:5001
 
 ## Running as a Service
 
-You can run this as a Windows service using NSSM or similar tools:
+Using the .bat should work atm, it will add service, and then ask you for config variables, like API key, Users and adresses.
+
+Else you can manually install the service following these steps:
 
 ```bash
 # Build and publish
@@ -199,18 +201,12 @@ For services that can't access user profiles, you can:
 Configure NSSM to capture application logs for easier debugging:
 
 ```bash
-# Set up log files (run as Administrator)
-nssm set JellyfinAnilistSync AppStdout "C:\Logs\JellyfinAnilistSync\stdout.log"
-nssm set JellyfinAnilistSync AppStderr "C:\Logs\JellyfinAnilistSync\stderr.log"
-
 # Create the log directory first
 mkdir "C:\Logs\JellyfinAnilistSync"
 
-# Optional: Set log file rotation (restart service when files get large)
-nssm set JellyfinAnilistSync AppRotateFiles 1
-nssm set JellyfinAnilistSync AppRotateOnline 1
-nssm set JellyfinAnilistSync AppRotateSeconds 86400    # Rotate daily
-nssm set JellyfinAnilistSync AppRotateBytes 10485760   # Rotate at 10MB
+# Set up log files (run as Administrator)
+nssm set JellyfinAnilistSync AppStdout "C:\Logs\JellyfinAnilistSync\stdout.log"
+nssm set JellyfinAnilistSync AppStderr "C:\Logs\JellyfinAnilistSync\stderr.log"
 ```
 
 ### Monitoring Logs
