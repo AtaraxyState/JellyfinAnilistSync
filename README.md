@@ -1,6 +1,7 @@
 # JellyfinAnilistSync
 
 A .NET application that automatically syncs your Jellyfin anime watching progress to AniList.
+This can be run has a cmd app or a windows service using NSSM.
 
 ## Features
 
