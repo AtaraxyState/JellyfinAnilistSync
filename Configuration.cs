@@ -7,6 +7,7 @@ public class Configuration
     public JellyfinConfig Jellyfin { get; set; } = new();
     public AniListConfig AniList { get; set; } = new();
     public WebhookConfig Webhook { get; set; } = new();
+    public SonarrConfig? Sonarr { get; set; }
     public List<string> LibraryNames { get; set; } = new();
 }
 
@@ -28,6 +29,13 @@ public class WebhookConfig
 {
     public string Host { get; set; } = "localhost";
     public int Port { get; set; } = 5000;
+}
+
+public class SonarrConfig
+{
+    public bool Enabled { get; set; } = false;
+    public bool RefreshJellyfinOnImport { get; set; } = true;
+    public string ApiKey { get; set; } = "";
 }
 
 public static class ConfigurationManager
@@ -214,6 +222,12 @@ public static class ConfigurationManager
                 Host = "localhost",
                 Port = 5000
             },
+            Sonarr = new SonarrConfig
+            {
+                Enabled = false,
+                RefreshJellyfinOnImport = true,
+                ApiKey = "YOUR_SONARR_API_KEY_HERE"
+            },
             LibraryNames = new List<string> { "Animes", "Anime" }
         };
     }
@@ -265,6 +279,21 @@ public static class ConfigurationManager
         // Default to false if not specified (bulk updates can be intensive)
         Console.WriteLine($"🌐 Using default bulk update (false) for: {jellyfinUsername}");
         return false;
+    }
+
+    public static bool IsSonarrEnabled(Configuration config)
+    {
+        return config.Sonarr?.Enabled == true;
+    }
+
+    public static bool ShouldRefreshJellyfinOnSonarrImport(Configuration config)
+    {
+        return config.Sonarr?.RefreshJellyfinOnImport == true;
+    }
+
+    public static bool IsSonarrApiKeyConfigured(Configuration config)
+    {
+        return !string.IsNullOrEmpty(config.Sonarr?.ApiKey);
     }
 
     public static void AddMissingSeries(MissingSeries series)

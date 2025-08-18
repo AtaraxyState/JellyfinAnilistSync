@@ -1,0 +1,105 @@
+{
+        "series": {
+          "id": 133,
+          "title": "WITCH WATCH",
+          "titleSlug": "witch-watch",
+          "path": "D:\\Documents\\MediaServer\\Animes\\Witch Watch",
+          "tvdbId": 453127,
+          "tvMazeId": 82666,
+          "tmdbId": 261868,
+          "imdbId": "tt33165027",
+          "type": "standard",
+          "year": 2025,
+          "genres": [
+            "Animation",
+            "Anime",
+            "Comedy",
+            "Fantasy",
+            "Romance"
+          ],
+          "images": [
+            {
+              "coverType": "banner",
+              "url": "/MediaCover/133/banner.jpg?lastWrite=638842339217269805",
+              "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/453127/banners/67f2a48d2e93f.jpg"
+            },
+            {
+              "coverType": "poster",
+              "url": "/MediaCover/133/poster.jpg?lastWrite=638842339217779816",
+              "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/453127/posters/67b20ede6806e.jpg"
+            },
+            {
+              "coverType": "fanart",
+              "url": "/MediaCover/133/fanart.jpg?lastWrite=638842339218499817",
+              "remoteUrl": "https://artworks.thetvdb.com/banners/v4/series/453127/backgrounds/67f2624e7b5a3.jpg"
+            }
+          ],
+          "tags": [],
+          "originalLanguage": {
+            "id": 8,
+            "name": "Japanese"
+          }
+        },
+        "episodes": [
+          {
+            "id": 4110,
+            "episodeNumber": 20,
+            "seasonNumber": 1,
+            "title": "The Lost Wolf and the Stray Cat",
+            "overview": "Noticing that Keigo seems sad, Nico gives him a ring imbued with a levitation spell. As he secretly trains to use it, Nemu approaches him.",
+            "airDate": "2025-08-17",
+            "airDateUtc": "2025-08-17T08:00:00Z",
+            "seriesId": 133,
+            "tvdbId": 10969434
+          }
+        ],
+        "episodeFiles": [
+          {
+            "id": 1745,
+            "relativePath": "Season 1\\WITCH WATCH - S01E20 - The Lost Wolf and the Stray Cat WEBDL-1080p.mkv",
+            "path": "D:\\Documents\\MediaServer\\Animes\\Witch Watch\\Season 1\\WITCH WATCH - S01E20 - The Lost Wolf and the Stray Cat WEBDL-1080p.mkv",
+            "quality": "WEBDL-1080p",
+            "qualityVersion": 1,
+            "releaseGroup": "ToonsHub",
+            "sceneName": "WITCH.WATCH.S01E20.The.Lost.Wolf.and.the.Stray.Cat.1080p.AMZN.WEB-DL.JPN.DDP2.0.H.264.ESub-ToonsHub",
+            "size": 980059778,
+            "dateAdded": "2025-08-18T19:53:31.5359759Z",
+            "languages": [
+              {
+                "id": 8,
+                "name": "Japanese"
+              }
+            ],
+            "mediaInfo": {
+              "audioChannels": 2.0,
+              "audioCodec": "EAC3",
+              "audioLanguages": [
+                "jpn"
+              ],
+              "height": 1080,
+              "width": 1920,
+              "subtitles": [
+                "eng"
+              ],
+              "videoCodec": "h264",
+              "videoDynamicRange": "",
+              "videoDynamicRangeType": ""
+            }
+          }
+        ],
+        "downloadClient": "qBittorrent",
+        "downloadClientType": "qBittorrent",
+        "downloadId": "8D9AE78A661534B2D747853B8B50A364749DCE26",
+        "release": {
+          "releaseTitle": "[ToonsHub] WITCH WATCH S01E20 1080p AMZN WEB-DL DDP2.0 H.264 (English-Sub)",
+          "indexer": "Nyaa",
+          "size": 980103987,
+          "releaseType": "singleEpisode"
+        },
+        "fileCount": 1,
+        "sourcePath": "D:\\Documents\\MediaServer\\Downloads\\WITCH.WATCH.S01E20.The.Lost.Wolf.and.the.Stray.Cat.1080p.AMZN.WEB-DL.JPN.DDP2.0.H.264.ESub-ToonsHub.mkv",
+        "destinationPath": "D:\\Documents\\MediaServer\\Animes\\Witch Watch\\Season 1",
+        "eventType": "Download",
+        "instanceName": "Sonarr",
+        "applicationUrl": ""
+      }

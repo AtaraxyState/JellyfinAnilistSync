@@ -1,0 +1,19 @@
+{
+  "Jellyfin": {
+    "ServerUrl": "",
+    "ApiKey": "5661bea09d17450b9ac5e72d456b9bbb"
+  },
+  "AniList": {
+    "UserTokens": {
+      "Rain": "test-token-123"
+    }
+  },
+  "Webhook": {
+    "Host": "localhost",
+    "Port": 5001
+  },
+  "LibraryNames": ["Animes", "Animes", "Animes", "Animes", "Animes", "Animes", "Animes", "Animes", "Animes", "Animes"],
+  "UserSettings": {
+      "Rain": { "userAutoAdd": true, "userBulkUpdate": false }
+  }
+}

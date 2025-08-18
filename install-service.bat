@@ -103,6 +103,25 @@ if !library_count! equ 0 (
     echo No libraries specified. Using defaults: Anime, TV Shows
 )
 
+REM Sonarr Configuration (Optional)
+echo.
+echo --- Sonarr Integration (Optional) ---
+echo Sonarr integration allows automatic Jellyfin library refreshes when new episodes are imported.
+set /p enable_sonarr="Enable Sonarr integration? (y/n): "
+if /i "!enable_sonarr!"=="y" (
+    set sonarr_enabled=true
+    set /p refresh_on_import="Auto-refresh Jellyfin when Sonarr imports episodes? (y/n): "
+    if /i "!refresh_on_import!"=="y" (
+        set sonarr_refresh=true
+    ) else (
+        set sonarr_refresh=false
+    )
+    echo Note: Configure Sonarr webhook to: http://!webhook_host!:!webhook_port!/sonarr
+) else (
+    set sonarr_enabled=false
+    set sonarr_refresh=true
+)
+
 REM User Configuration
 echo.
 echo --- User Configuration ---
@@ -196,6 +215,11 @@ echo   "Webhook": {
 echo     "Host": "!webhook_host!",
 echo     "Port": !webhook_port!
 echo   },
+echo   "Sonarr": {
+echo     "Enabled": !sonarr_enabled!,
+echo     "RefreshJellyfinOnImport": !sonarr_refresh!,
+echo     "ApiKey": ""
+echo   },
 echo   "LibraryNames": [!library_names!],
 echo   "UserSettings": {
 echo !user_settings!
@@ -258,7 +282,12 @@ echo.
 echo Next steps:
 echo   1. Start the service: nssm start JellyfinAnilistSync
 echo   2. Configure Jellyfin webhooks to point to: http://!webhook_host!:!webhook_port!
+if /i "!enable_sonarr!"=="y" (
+echo   3. Configure Sonarr webhook to point to: http://!webhook_host!:!webhook_port!/sonarr
+echo   4. Monitor logs in the Logs directory
+) else (
 echo   3. Monitor logs in the Logs directory
+)
 echo.
 echo Service management commands:
 echo   - Start:   nssm start JellyfinAnilistSync

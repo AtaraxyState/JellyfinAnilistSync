@@ -1,0 +1,16 @@
+{
+  "ServerId": "16588a9f062a40c4966586b1d220bffc",
+  "ServerName": "Rain",
+  "ServerVersion": "10.10.3",
+  "ServerUrl": "",
+  "NotificationType": "SessionStart",
+  "Id": "0b5422a1f77b5ead8a0a8c2358edd59c",
+  "UserId": "02700c8344d542619b39319296c0d4c7",
+  "NotificationUsername": "Rain",
+  "Client": "Android TV",
+  "LastActivityDate": "0001-01-01T00:00:00.0000000Z",
+  "LastPlaybackCheckIn": "0001-01-01T00:00:00.0000000Z",
+  "DeviceName": "Fire TV  - Timothée",
+  "DeviceId": "c5391b0e12003b403f81f5808bd1834c8bc3ac0d",
+  "RemoteEndPoint": "192.168.1.34"
+}

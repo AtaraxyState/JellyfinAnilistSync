@@ -492,6 +492,112 @@ public class JellyfinClient
         return results;
     }
 
+    /// <summary>
+    /// Finds a series in Jellyfin by TVDB ID
+    /// </summary>
+    /// <param name="tvdbId">The TVDB ID to search for</param>
+    /// <returns>The Jellyfin series ID if found, null otherwise</returns>
+    public async Task<string?> FindSeriesByTvdbIdAsync(int tvdbId)
+    {
+        var url = $"{_baseUrl}/Items?IncludeItemTypes=Series&Fields=ProviderIds&Recursive=true&limit=1000";
+        
+        Console.WriteLine($"🔍 Searching for series with TVDB ID: {tvdbId}");
+        
+        var response = await _httpClient.GetAsync(url);
+        
+        if (!response.IsSuccessStatusCode)
+        {
+            Console.WriteLine($"❌ Jellyfin API error: {response.StatusCode}");
+            return null;
+        }
+
+        var content = await response.Content.ReadAsStringAsync();
+        
+        using var doc = JsonDocument.Parse(content);
+        var root = doc.RootElement;
+        
+        if (!root.TryGetProperty("Items", out var items))
+        {
+            Console.WriteLine("❌ No Items found in response");
+            return null;
+        }
+        
+        foreach (var item in items.EnumerateArray())
+        {
+            if (item.TryGetProperty("ProviderIds", out var providerIds))
+            {
+                // Check for TVDB provider ID
+                if (providerIds.TryGetProperty("Tvdb", out var tvdbProp))
+                {
+                    var tvdbValue = tvdbProp.GetString();
+                    if (int.TryParse(tvdbValue, out int itemTvdbId) && itemTvdbId == tvdbId)
+                    {
+                        var seriesId = GetStringFromJson(item, "Id");
+                        var seriesName = GetStringFromJson(item, "Name");
+                        Console.WriteLine($"✅ Found series: {seriesName} (ID: {seriesId})");
+                        return seriesId;
+                    }
+                }
+            }
+        }
+        
+        Console.WriteLine($"❌ No series found with TVDB ID: {tvdbId}");
+        return null;
+    }
+
+    /// <summary>
+    /// Refreshes metadata for a specific series, prompting Jellyfin to search for new episodes
+    /// </summary>
+    /// <param name="seriesId">The unique identifier of the series to refresh</param>
+    /// <param name="metadataRefreshMode">The metadata refresh mode (None, ValidationOnly, FullRefresh)</param>
+    /// <param name="imageRefreshMode">The image refresh mode (None, ValidationOnly, FullRefresh)</param>
+    /// <param name="replaceAllMetadata">Whether to replace all existing metadata (only for FullRefresh mode)</param>
+    /// <param name="replaceAllImages">Whether to replace all existing images (only for FullRefresh mode)</param>
+    /// <returns>True if the refresh was successfully queued, false otherwise</returns>
+    public async Task<bool> RefreshSeriesAsync(string seriesId, string metadataRefreshMode = "FullRefresh", string imageRefreshMode = "ValidationOnly", bool replaceAllMetadata = false, bool replaceAllImages = false)
+    {
+        var queryParams = new List<string>();
+        
+        if (!string.IsNullOrEmpty(metadataRefreshMode))
+            queryParams.Add($"metadataRefreshMode={metadataRefreshMode}");
+        
+        if (!string.IsNullOrEmpty(imageRefreshMode))
+            queryParams.Add($"imageRefreshMode={imageRefreshMode}");
+        
+        if (replaceAllMetadata)
+            queryParams.Add("replaceAllMetadata=true");
+        
+        if (replaceAllImages)
+            queryParams.Add("replaceAllImages=true");
+        
+        var queryString = queryParams.Count > 0 ? "?" + string.Join("&", queryParams) : "";
+        var url = $"{_baseUrl}/Items/{seriesId}/Refresh{queryString}";
+        
+        Console.WriteLine($"🔄 Refreshing series metadata: {seriesId}");
+        Console.WriteLine($"🔍 Refresh URL: {url}");
+        
+        try
+        {
+            var response = await _httpClient.PostAsync(url, null);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                Console.WriteLine($"✅ Series refresh queued successfully");
+                return true;
+            }
+            else
+            {
+                Console.WriteLine($"❌ Failed to refresh series: {response.StatusCode}");
+                return false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error refreshing series: {ex.Message}");
+            return false;
+        }
+    }
+
     private static string GetStringFromJson(JsonElement element, string propertyName)
     {
         return element.TryGetProperty(propertyName, out var prop) ? prop.GetString() ?? "" : "";

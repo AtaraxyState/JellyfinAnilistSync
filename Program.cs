@@ -95,6 +95,201 @@ async Task HandleWebhook(HttpContext context)
 app.MapPost("/webhook", HandleWebhook);
 app.MapPost("/", HandleWebhook);
 
+// Map Sonarr webhook endpoint (only if enabled in config)
+if (config.Sonarr?.Enabled == true)
+{
+    app.MapPost("/sonarr", HandleSonarrWebhook);
+    var apiKeyStatus = !string.IsNullOrEmpty(config.Sonarr?.ApiKey) ? "with API key authentication" : "without authentication";
+    Console.WriteLine($"🎯 Sonarr webhook endpoint enabled at /sonarr ({apiKeyStatus})");
+    logger.LogInformation("Sonarr webhook integration enabled with API key: {HasApiKey}", !string.IsNullOrEmpty(config.Sonarr?.ApiKey));
+}
+else
+{
+    Console.WriteLine("💤 Sonarr webhook integration disabled");
+    logger.LogInformation("Sonarr webhook integration disabled");
+}
+
+// Sonarr webhook handler function
+async Task HandleSonarrWebhook(HttpContext context)
+{
+    // Check API key authentication if configured
+    if (!string.IsNullOrEmpty(config.Sonarr?.ApiKey))
+    {
+        var providedApiKey = context.Request.Headers["X-Api-Key"].FirstOrDefault() ??
+                           context.Request.Query["apikey"].FirstOrDefault();
+        
+        if (string.IsNullOrEmpty(providedApiKey) || providedApiKey != config.Sonarr.ApiKey)
+        {
+            logger.LogWarning("Sonarr webhook authentication failed - invalid or missing API key");
+            Console.WriteLine("❌ Sonarr webhook authentication failed - invalid or missing API key");
+            context.Response.StatusCode = 401;
+            await context.Response.WriteAsync("Unauthorized");
+            return;
+        }
+        
+        Console.WriteLine("✅ Sonarr webhook authenticated successfully");
+    }
+    else
+    {
+        Console.WriteLine("⚠️ Sonarr webhook authentication disabled (no API key configured)");
+    }
+    
+    using var reader = new StreamReader(context.Request.Body);
+    var body = await reader.ReadToEndAsync();
+    
+    try
+    {
+        using var doc = JsonDocument.Parse(body);
+        var root = doc.RootElement;
+        
+        // Log entire Sonarr payload
+        logger.LogInformation("Received Sonarr webhook: {SonarrWebhookData}", root);
+        
+        // Check eventType field (the main event type from Sonarr)
+        if (root.TryGetProperty("eventType", out var eventTypeProp))
+        {
+            var eventType = eventTypeProp.GetString();
+            logger.LogInformation("Sonarr EventType: {EventType}", eventType);
+            Console.WriteLine($"📺 Sonarr Event Type: {eventType}");
+            
+            // Handle different Sonarr event types
+            switch (eventType)
+            {
+                case "Download":
+                case "ImportComplete":
+                    await HandleSonarrImportCompleteAsync(root, logger);
+                    break;
+                case "Grab":
+                    await HandleSonarrGrabAsync(root, logger);
+                    break;
+                case "Test":
+                    Console.WriteLine("🧪 Sonarr test webhook received successfully");
+                    logger.LogInformation("Sonarr test webhook received");
+                    break;
+                default:
+                    logger.LogInformation("Unhandled Sonarr event type: {EventType}", eventType);
+                    Console.WriteLine($"❓ Unknown Sonarr event type: {eventType}");
+                    break;
+            }
+        }
+        else
+        {
+            logger.LogWarning("No 'eventType' property found in Sonarr webhook data");
+            Console.WriteLine("⚠️ No eventType found in Sonarr webhook");
+        }
+    }
+    catch (JsonException ex)
+    {
+        logger.LogError(ex, "Invalid JSON received in Sonarr webhook: {ErrorMessage}", ex.Message);
+        Console.WriteLine($"❌ Invalid JSON in Sonarr webhook: {ex.Message}");
+    }
+    
+    context.Response.StatusCode = 200;
+    await context.Response.WriteAsync("OK");
+}
+
+// Sonarr handler methods
+async Task HandleSonarrImportCompleteAsync(JsonElement root, ILogger logger)
+{
+    Console.WriteLine("📥 Processing Sonarr ImportComplete/Download event");
+    
+    // Extract series information
+    var seriesTitle = GetNestedStringProperty(root, "series", "title");
+    var seriesId = GetNestedIntProperty(root, "series", "id");
+    var seriesTvdbId = GetNestedIntProperty(root, "series", "tvdbId");
+    var seriesImdbId = GetNestedStringProperty(root, "series", "imdbId");
+    
+    // Extract episode information
+    var episodes = root.TryGetProperty("episodes", out var episodesProp) ? episodesProp : new JsonElement();
+    
+    Console.WriteLine($"   📺 Series: {seriesTitle} (Sonarr ID: {seriesId})");
+    Console.WriteLine($"   🆔 TVDB ID: {seriesTvdbId}");
+    Console.WriteLine($"   🆔 IMDB ID: {seriesImdbId}");
+    
+    if (episodes.ValueKind == JsonValueKind.Array)
+    {
+        Console.WriteLine($"   📋 Episodes imported:");
+        foreach (var episode in episodes.EnumerateArray())
+        {
+            var seasonNumber = GetIntProperty(episode, "seasonNumber");
+            var episodeNumber = GetIntProperty(episode, "episodeNumber");
+            var episodeTitle = GetStringProperty(episode, "title");
+            var quality = GetNestedStringProperty(episode, "quality", "quality", "name");
+            
+            Console.WriteLine($"      • S{seasonNumber:D2}E{episodeNumber:D2} - {episodeTitle} ({quality})");
+        }
+    }
+    
+    logger.LogInformation("Sonarr import complete: {SeriesTitle} - {EpisodeCount} episodes", 
+        seriesTitle, episodes.ValueKind == JsonValueKind.Array ? episodes.GetArrayLength() : 0);
+    
+    // Refresh Jellyfin series if configured
+    if (JellyfinAnilistSync.ConfigurationManager.ShouldRefreshJellyfinOnSonarrImport(config))
+    {
+        if (seriesTvdbId > 0)
+        {
+            Console.WriteLine($"🔄 Refreshing Jellyfin series with TVDB ID {seriesTvdbId}");
+            
+            try
+            {
+                // Find the series in Jellyfin by TVDB ID
+                var jellyfinSeriesId = await jellyfinClient.FindSeriesByTvdbIdAsync(seriesTvdbId);
+                
+                if (!string.IsNullOrEmpty(jellyfinSeriesId))
+                {
+                    // Refresh the series metadata to pick up new episodes
+                    var refreshSuccess = await jellyfinClient.RefreshSeriesAsync(jellyfinSeriesId);
+                    
+                    if (refreshSuccess)
+                    {
+                        Console.WriteLine($"✅ Successfully triggered Jellyfin refresh for {seriesTitle}");
+                        logger.LogInformation("Jellyfin series refresh triggered for {SeriesTitle} (TVDB: {TvdbId})", seriesTitle, seriesTvdbId);
+                    }
+                    else
+                    {
+                        Console.WriteLine($"❌ Failed to trigger Jellyfin refresh for {seriesTitle}");
+                        logger.LogWarning("Failed to trigger Jellyfin refresh for {SeriesTitle} (TVDB: {TvdbId})", seriesTitle, seriesTvdbId);
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"❌ Series not found in Jellyfin: {seriesTitle} (TVDB: {seriesTvdbId})");
+                    logger.LogWarning("Series not found in Jellyfin: {SeriesTitle} (TVDB: {TvdbId})", seriesTitle, seriesTvdbId);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"❌ Error refreshing Jellyfin series: {ex.Message}");
+                logger.LogError(ex, "Error refreshing Jellyfin series {SeriesTitle} (TVDB: {TvdbId})", seriesTitle, seriesTvdbId);
+            }
+        }
+        else
+        {
+            Console.WriteLine($"❌ No TVDB ID found for series: {seriesTitle}");
+            logger.LogWarning("No TVDB ID found for Sonarr series: {SeriesTitle}", seriesTitle);
+        }
+    }
+    else
+    {
+        Console.WriteLine($"💤 Jellyfin refresh disabled in configuration");
+    }
+}
+
+async Task HandleSonarrGrabAsync(JsonElement root, ILogger logger)
+{
+    Console.WriteLine("🎯 Processing Sonarr Grab event");
+    
+    var seriesTitle = GetNestedStringProperty(root, "series", "title");
+    var releaseTitle = GetNestedStringProperty(root, "release", "releaseTitle");
+    var quality = GetNestedStringProperty(root, "release", "quality", "quality", "name");
+    
+    Console.WriteLine($"   📺 Series: {seriesTitle}");
+    Console.WriteLine($"   📦 Release: {releaseTitle}");
+    Console.WriteLine($"   💎 Quality: {quality}");
+    
+    logger.LogInformation("Sonarr grab: {SeriesTitle} - {ReleaseTitle}", seriesTitle, releaseTitle);
+}
+
 // Handler methods for different webhook types
 async Task HandleUserDataSavedAsync(JsonElement root, ILogger logger)
 {
@@ -279,6 +474,33 @@ static int GetIntProperty(JsonElement element, string propertyName)
 static bool GetBoolProperty(JsonElement element, string propertyName)
 {
     return element.TryGetProperty(propertyName, out var prop) && prop.GetBoolean();
+}
+
+// Helper methods for nested JSON properties (for Sonarr webhooks)
+static string GetNestedStringProperty(JsonElement element, params string[] propertyPath)
+{
+    var current = element;
+    foreach (var property in propertyPath)
+    {
+        if (!current.TryGetProperty(property, out current))
+        {
+            return "";
+        }
+    }
+    return current.ValueKind == JsonValueKind.String ? current.GetString() ?? "" : "";
+}
+
+static int GetNestedIntProperty(JsonElement element, params string[] propertyPath)
+{
+    var current = element;
+    foreach (var property in propertyPath)
+    {
+        if (!current.TryGetProperty(property, out current))
+        {
+            return 0;
+        }
+    }
+    return current.ValueKind == JsonValueKind.Number ? current.GetInt32() : 0;
 }
 
 // Handle graceful shutdown for Windows Service

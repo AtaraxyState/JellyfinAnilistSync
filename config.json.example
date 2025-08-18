@@ -12,6 +12,11 @@
     "Host": "localhost",
     "Port": 5000
   },
+  "Sonarr": {
+    "Enabled": false,
+    "RefreshJellyfinOnImport": true,
+    "ApiKey": "YOUR_SONARR_API_KEY_HERE"
+  },
   "LibraryNames": ["Anime", "TV Shows"],
   "UserSettings": {
     "your-jellyfin-username": {

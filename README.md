@@ -11,6 +11,7 @@ This can be run has a cmd app or a windows service using NSSM.
 - 📚 **Bulk sync** - Sync entire anime library on user login
 - 📝 **Missing series tracking** - Tracks anime that couldn't be found on AniList for manual review
 - ⚡ **Rate limiting** - Handles AniList API rate limits gracefully
+- 🎯 **Sonarr integration** - Automatically refreshes Jellyfin when new episodes are imported
 - 🔧 **Easy configuration** - JSON-based configuration with automatic setup
 
 ## Installation
@@ -20,6 +21,7 @@ This can be run has a cmd app or a windows service using NSSM.
 - .NET 8.0 or later
 - Jellyfin server with webhook plugin installed
 - AniList account(s) with API access tokens
+- (Optional) Sonarr instance for automatic library refreshes
 
 ### Setup
 
@@ -88,6 +90,11 @@ The application will create a default configuration file if none exists and log 
     "host": "localhost",
     "port": 5000
   },
+  "sonarr": {
+    "enabled": false,
+    "refreshJellyfinOnImport": true,
+    "apiKey": ""
+  },
   "libraryNames": ["Animes", "Anime"]
 }
 ```
@@ -147,6 +154,45 @@ set ASPNETCORE_URLS=http://0.0.0.0:5001
 3. **User Login**: When a configured user logs into Jellyfin, it performs a bulk sync of their entire anime library
 4. **Smart Matching**: Uses AniList provider IDs from Jellyfin metadata, or falls back to name-based search
 5. **Missing Series**: Tracks anime that couldn't be matched for manual review in `missing_anilist_series.json`
+
+## Sonarr Integration (Optional)
+
+Sonarr integration enables automatic Jellyfin library refreshes when new episodes are imported, ensuring immediate availability without waiting for scheduled scans.
+
+### Sonarr Configuration
+
+1. **Enable in Config**:
+   ```json
+   {
+     "sonarr": {
+       "enabled": true,
+       "refreshJellyfinOnImport": true,
+       "apiKey": ""  // Optional for authentication /!\ not working yet /!\
+     }
+   }
+   ```
+
+2. **Configure Sonarr Webhook**:
+   - Go to Sonarr Settings → Connect
+   - Add new Webhook connection
+   - **URL**: `http://your-service-host:5000/sonarr`
+   - **Method**: POST
+   - **Triggers**: Select "On Import/Upgrade"
+   - **Authentication**: Leave empty (unless you set an API key)
+
+### How It Works
+
+1. **Sonarr imports episode** → Sends webhook to service
+2. **Service receives webhook** → Extracts TVDB ID from series info
+3. **Find matching series** → Searches Jellyfin for series with same TVDB ID  
+4. **Trigger refresh** → Calls Jellyfin `/Items/{seriesId}/Refresh` API
+5. **Jellyfin scans for new episode** → Episode appears immediately in library
+
+### Benefits
+
+- **Immediate availability**: New episodes appear instantly in Jellyfin
+- **Reduced server load**: Only refreshes specific series, not entire library
+- **Seamless workflow**: Sonarr → Jellyfin → AniList sync happens automatically
 
 ## Running as a Service
 
