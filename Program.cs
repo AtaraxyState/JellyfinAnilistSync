@@ -39,6 +39,9 @@ var app = builder.Build();
 var logger = app.Services.GetRequiredService<ILogger<Program>>();
 logger.LogInformation("Starting JellyfinAnilistSync webhook service on {Urls}", urls);
 
+// Create VideoConversionService for H.265 conversion
+var videoConversionService = new VideoConversionService(logger, jellyfinClient, config);
+
 // Webhook handler function
 async Task HandleWebhook(HttpContext context)
 {
@@ -107,6 +110,20 @@ else
 {
     Console.WriteLine("💤 Sonarr webhook integration disabled");
     logger.LogInformation("Sonarr webhook integration disabled");
+}
+
+// Map conversion status endpoints (only if H.265 conversion is enabled)
+if (config.Conversion.AutoConvertToHEVC)
+{
+    app.MapGet("/conversions", () => videoConversionService.GetActiveConversions());
+    app.MapGet("/conversions/{jobId}", (string jobId) => videoConversionService.GetConversionStatus(jobId));
+    Console.WriteLine("🎬 H.265 conversion status endpoints enabled at /conversions");
+    logger.LogInformation("H.265 conversion status endpoints enabled");
+}
+else
+{
+    Console.WriteLine("💤 H.265 conversion status endpoints disabled");
+    logger.LogInformation("H.265 conversion status endpoints disabled");
 }
 
 // Sonarr webhook handler function
@@ -223,56 +240,119 @@ async Task HandleSonarrImportCompleteAsync(JsonElement root, ILogger logger)
     logger.LogInformation("Sonarr import complete: {SeriesTitle} - {EpisodeCount} episodes", 
         seriesTitle, episodes.ValueKind == JsonValueKind.Array ? episodes.GetArrayLength() : 0);
     
-    // Refresh Jellyfin series if configured
-    if (JellyfinAnilistSync.ConfigurationManager.ShouldRefreshJellyfinOnSonarrImport(config))
-    {
-        if (seriesTvdbId > 0)
-        {
-            Console.WriteLine($"🔄 Refreshing Jellyfin series with TVDB ID {seriesTvdbId}");
-            
-            try
+                // Refresh Jellyfin series if configured
+            if (JellyfinAnilistSync.ConfigurationManager.ShouldRefreshJellyfinOnSonarrImport(config))
             {
-                // Find the series in Jellyfin by TVDB ID
-                var jellyfinSeriesId = await jellyfinClient.FindSeriesByTvdbIdAsync(seriesTvdbId);
-                
-                if (!string.IsNullOrEmpty(jellyfinSeriesId))
+                if (seriesTvdbId > 0)
                 {
-                    // Refresh the series metadata to pick up new episodes
-                    var refreshSuccess = await jellyfinClient.RefreshSeriesAsync(jellyfinSeriesId);
+                    Console.WriteLine($"🔄 Refreshing Jellyfin series with TVDB ID {seriesTvdbId}");
                     
-                    if (refreshSuccess)
+                    try
                     {
-                        Console.WriteLine($"✅ Successfully triggered Jellyfin refresh for {seriesTitle}");
-                        logger.LogInformation("Jellyfin series refresh triggered for {SeriesTitle} (TVDB: {TvdbId})", seriesTitle, seriesTvdbId);
+                        // Find the series in Jellyfin by TVDB ID
+                        var jellyfinSeriesId = await jellyfinClient.FindSeriesByTvdbIdAsync(seriesTvdbId);
+                        
+                        if (!string.IsNullOrEmpty(jellyfinSeriesId))
+                        {
+                            // Refresh the series metadata to pick up new episodes
+                            var refreshSuccess = await jellyfinClient.RefreshSeriesAsync(jellyfinSeriesId);
+                            
+                            if (refreshSuccess)
+                            {
+                                Console.WriteLine($"✅ Successfully triggered Jellyfin refresh for {seriesTitle}");
+                                logger.LogInformation("Jellyfin series refresh triggered for {SeriesTitle} (TVDB: {TvdbId})", seriesTitle, seriesTvdbId);
+                            }
+                            else
+                            {
+                                Console.WriteLine($"❌ Failed to trigger Jellyfin refresh for {seriesTitle}");
+                                logger.LogWarning("Failed to trigger Jellyfin refresh for {SeriesTitle} (TVDB: {TvdbId})", seriesTitle, seriesTvdbId);
+                            }
+
+                            // Start H.265 conversion if enabled and file path is available
+                            if (config.Conversion.AutoConvertToHEVC)
+                            {
+                                try
+                                {
+                                                                    // Try to get the file path from the episode information
+                                var episodeFilePath = GetEpisodeFilePathFromSonarrWebhook(root);
+                                
+                                if (!string.IsNullOrEmpty(episodeFilePath))
+                                {
+                                    Console.WriteLine($"🎬 Starting H.265 conversion check for: {episodeFilePath}");
+                                    
+                                    // Start conversion asynchronously (won't block other webhook processing)
+                                    var conversionStarted = await videoConversionService.StartConversionIfNeededAsync(
+                                        episodeFilePath, 
+                                        jellyfinSeriesId, 
+                                        seriesTitle);
+                                    
+                                    if (conversionStarted)
+                                    {
+                                        Console.WriteLine($"🔄 H.265 conversion started for: {seriesTitle}");
+                                        logger.LogInformation("H.265 conversion started for {SeriesTitle} - {FilePath}", seriesTitle, episodeFilePath);
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine($"💤 H.265 conversion not needed for: {seriesTitle}");
+                                    }
+                                }
+                                else
+                                {
+                                    Console.WriteLine($"⚠️ Could not determine file path for H.265 conversion from Sonarr webhook");
+                                    logger.LogWarning("Could not determine file path for H.265 conversion from Sonarr webhook for {SeriesTitle}", seriesTitle);
+                                    
+                                    // Log the webhook structure for debugging
+                                    Console.WriteLine("🔍 Debug: Sonarr webhook structure:");
+                                    if (root.TryGetProperty("episodeFiles", out var episodeFiles))
+                                    {
+                                        Console.WriteLine($"   📁 episodeFiles array found with {episodeFiles.GetArrayLength()} items");
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine("   ❌ episodeFiles array not found");
+                                    }
+                                    
+                                    if (root.TryGetProperty("episodes", out var episodesDebug))
+                                    {
+                                        Console.WriteLine($"   📺 episodes array found with {episodesDebug.GetArrayLength()} items");
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine("   ❌ episodes array not found");
+                                    }
+                                }
+                                }
+                                catch (Exception ex)
+                                {
+                                    Console.WriteLine($"❌ Error starting H.265 conversion: {ex.Message}");
+                                    logger.LogError(ex, "Error starting H.265 conversion for {SeriesTitle}", seriesTitle);
+                                }
+                            }
+                        }
+                        else
+                        {
+                            Console.WriteLine($"❌ Series not found in Jellyfin: {seriesTitle} (TVDB: {seriesTvdbId})");
+                            logger.LogWarning("Series not found in Jellyfin: {SeriesTitle} (TVDB: {TvdbId})", seriesTitle, seriesTvdbId);
+                        }
                     }
-                    else
+                    catch (Exception ex)
                     {
-                        Console.WriteLine($"❌ Failed to trigger Jellyfin refresh for {seriesTitle}");
-                        logger.LogWarning("Failed to trigger Jellyfin refresh for {SeriesTitle} (TVDB: {TvdbId})", seriesTitle, seriesTvdbId);
+                        Console.WriteLine($"❌ Error refreshing Jellyfin series: {ex.Message}");
+                        logger.LogError(ex, "Error refreshing Jellyfin series {SeriesTitle} (TVDB: {TvdbId})", seriesTitle, seriesTvdbId);
                     }
                 }
                 else
                 {
-                    Console.WriteLine($"❌ Series not found in Jellyfin: {seriesTitle} (TVDB: {seriesTvdbId})");
-                    logger.LogWarning("Series not found in Jellyfin: {SeriesTitle} (TVDB: {TvdbId})", seriesTitle, seriesTvdbId);
+                    Console.WriteLine($"❌ No TVDB ID found for series: {seriesTitle}");
+                    logger.LogWarning("No TVDB ID found for Sonarr series: {SeriesTitle}", seriesTitle);
                 }
             }
-            catch (Exception ex)
+            else
             {
-                Console.WriteLine($"❌ Error refreshing Jellyfin series: {ex.Message}");
-                logger.LogError(ex, "Error refreshing Jellyfin series {SeriesTitle} (TVDB: {TvdbId})", seriesTitle, seriesTvdbId);
+                Console.WriteLine($"💤 Jellyfin refresh disabled in configuration");
             }
-        }
-        else
-        {
-            Console.WriteLine($"❌ No TVDB ID found for series: {seriesTitle}");
-            logger.LogWarning("No TVDB ID found for Sonarr series: {SeriesTitle}", seriesTitle);
-        }
-    }
-    else
-    {
-        Console.WriteLine($"💤 Jellyfin refresh disabled in configuration");
-    }
+
+
 }
 
 async Task HandleSonarrGrabAsync(JsonElement root, ILogger logger)
@@ -501,6 +581,70 @@ static int GetNestedIntProperty(JsonElement element, params string[] propertyPat
         }
     }
     return current.ValueKind == JsonValueKind.Number ? current.GetInt32() : 0;
+}
+
+/// <summary>
+/// Extracts the file path from a Sonarr webhook payload
+/// </summary>
+/// <param name="root">The root JSON element from the Sonarr webhook</param>
+/// <returns>The file path if found, null otherwise</returns>
+static string? GetEpisodeFilePathFromSonarrWebhook(JsonElement root)
+{
+    try
+    {
+        // Try to get the file path from the episodeFiles array (this is where the actual file path is)
+        if (root.TryGetProperty("episodeFiles", out var episodeFiles) && episodeFiles.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var episodeFile in episodeFiles.EnumerateArray())
+            {
+                if (episodeFile.TryGetProperty("path", out var filePathProp))
+                {
+                    var filePath = filePathProp.GetString();
+                    if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
+                    {
+                        return filePath;
+                    }
+                }
+            }
+        }
+
+        // Fallback: try to get from the episodes array (though this usually doesn't have file paths)
+        if (root.TryGetProperty("episodes", out var episodes) && episodes.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var episode in episodes.EnumerateArray())
+            {
+                if (episode.TryGetProperty("filePath", out var filePathProp))
+                {
+                    var filePath = filePathProp.GetString();
+                    if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
+                    {
+                        return filePath;
+                    }
+                }
+            }
+        }
+
+        // Last fallback: try to get from the series level (this will be a folder path, not a file path)
+        if (root.TryGetProperty("series", out var series) && 
+            series.TryGetProperty("path", out var seriesPathProp))
+        {
+            var seriesPath = seriesPathProp.GetString();
+            if (!string.IsNullOrEmpty(seriesPath))
+            {
+                Console.WriteLine($"⚠️ Warning: Only series folder path available, not episode file path: {seriesPath}");
+                // Don't return the series path as it's a folder, not a file
+                return null;
+            }
+        }
+
+        Console.WriteLine("⚠️ No valid episode file path found in Sonarr webhook");
+        return null;
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"❌ Error extracting file path from Sonarr webhook: {ex.Message}");
+        return null;
+    }
 }
 
 // Handle graceful shutdown for Windows Service

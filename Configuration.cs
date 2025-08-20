@@ -5,6 +5,7 @@ namespace JellyfinAnilistSync;
 public class Configuration
 {
     public JellyfinConfig Jellyfin { get; set; } = new();
+    public ConversionConfig Conversion { get; set; } = new();
     public AniListConfig AniList { get; set; } = new();
     public WebhookConfig Webhook { get; set; } = new();
     public SonarrConfig? Sonarr { get; set; }
@@ -15,6 +16,14 @@ public class JellyfinConfig
 {
     public string ServerUrl { get; set; } = "";
     public string ApiKey { get; set; } = "";
+}
+
+public class ConversionConfig
+{
+    public bool AutoConvertToHEVC { get; set; } = false;
+    public string HEVCPreset { get; set; } = "medium";
+    public bool UseGPUAcceleration { get; set; } = false;
+    public string GPUEncoder { get; set; } = "auto";
 }
 
 public class AniListConfig
@@ -43,6 +52,7 @@ public static class ConfigurationManager
             private static readonly string ConfigDirectory = GetConfigDirectory();
     private static readonly string ConfigPath = Path.Combine(ConfigDirectory, "config.json");
     private static readonly string MissingSeriesPath = Path.Combine(ConfigDirectory, "missing_anilist_series.json");
+    private static readonly string ConversionLogPath = Path.Combine(ConfigDirectory, "conversion.log");
 
     private static string GetConfigDirectory()
     {
@@ -200,6 +210,13 @@ public static class ConfigurationManager
             {
                 ServerUrl = "http://localhost:8096",
                 ApiKey = "YOUR_JELLYFIN_API_KEY_HERE"
+            },
+            Conversion = new ConversionConfig
+            {
+                AutoConvertToHEVC = false,
+                HEVCPreset = "medium",
+                UseGPUAcceleration = false,
+                GPUEncoder = "auto"
             },
             AniList = new AniListConfig
             {
@@ -363,6 +380,41 @@ public static class ConfigurationManager
         {
             Console.WriteLine($"❌ Error saving missing series: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// Writes a conversion log entry to the conversion.log file
+    /// </summary>
+    /// <param name="message">The log message to write</param>
+    public static void WriteConversionLog(string message)
+    {
+        try
+        {
+            var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+            var logEntry = $"[{timestamp}] {message}";
+            
+            // Ensure the log directory exists
+            if (!Directory.Exists(ConfigDirectory))
+            {
+                Directory.CreateDirectory(ConfigDirectory);
+            }
+            
+            // Append to the log file
+            File.AppendAllText(ConversionLogPath, logEntry + Environment.NewLine);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"❌ Error writing to conversion log: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Gets the path to the conversion log file
+    /// </summary>
+    /// <returns>The full path to the conversion log file</returns>
+    public static string GetConversionLogPath()
+    {
+        return ConversionLogPath;
     }
 }
 

@@ -34,6 +34,7 @@ This can be run has a cmd app or a windows service using NSSM.
 - Jellyfin server with webhook plugin installed
 - AniList account(s) with API access tokens
 - (Optional) Sonarr instance for automatic library refreshes
+- (Optional) FFmpeg and FFprobe for H.265 video conversion
 
 ### Setup
 
@@ -62,6 +63,11 @@ This can be run has a cmd app or a windows service using NSSM.
    - Configure webhooks to send to your application URL
    - Enable events: `UserDataSaved`, `AuthenticationSuccess`
 
+6. **Install FFmpeg (for H.265 conversion)**
+   - Download FFmpeg from [ffmpeg.org](https://ffmpeg.org/download.html)
+   - Add FFmpeg and FFprobe to your system PATH
+   - Verify installation: `ffmpeg -version` and `ffprobe -version`
+
 ## Configuration
 
 ### Configuration File Location
@@ -82,6 +88,12 @@ The application will create a default configuration file if none exists and log 
   "jellyfin": {
     "serverUrl": "http://your-jellyfin-server:8096",
     "apiKey": "your-jellyfin-api-key"
+  },
+  "conversion": {
+    "autoConvertToHEVC": false,
+    "hevcPreset": "medium",
+    "useGPUAcceleration": false,
+    "gpuEncoder": "auto"
   },
   "aniList": {
     "globalToken": "fallback-anilist-token",
@@ -166,6 +178,139 @@ set ASPNETCORE_URLS=http://0.0.0.0:5001
 3. **User Login**: When a configured user logs into Jellyfin, it performs a bulk sync of their entire anime library
 4. **Smart Matching**: Uses AniList provider IDs from Jellyfin metadata, or falls back to name-based search
 5. **Missing Series**: Tracks anime that couldn't be matched for manual review in `missing_anilist_series.json`
+
+## H.265 Auto-Conversion (Optional)
+
+The application can automatically convert H.264 video files to H.265 (HEVC) when new episodes are imported via Sonarr. This feature helps reduce storage space while maintaining video quality.
+
+### Prerequisites
+
+- **FFmpeg** installed and available in system PATH
+- **FFprobe** for video codec detection
+- **AutoConvertToHEVC** enabled in configuration
+
+### How It Works
+
+1. **Sonarr imports episode** → Sends webhook to service
+2. **Service notifies Jellyfin** → Always refreshes series metadata to pick up new episodes
+3. **Service detects H.264 file** → Uses FFprobe to check video codec
+4. **Starts conversion** → Runs FFmpeg in background using H.265 preset (if H.264 detected)
+5. **Monitors progress** → Tracks conversion status without blocking other operations
+6. **Notifies Jellyfin again** → Refreshes series metadata when conversion completes (if conversion occurred)
+7. **Cleans up** → Removes original H.264 file after successful conversion
+
+### Configuration
+
+Enable H.265 conversion in your `config.json`:
+
+```json
+{
+  "conversion": {
+    "autoConvertToHEVC": true,
+    "hevcPreset": "medium",
+    "useGPUAcceleration": false,
+    "gpuEncoder": "auto"
+  }
+}
+```
+
+#### GPU Acceleration Options
+
+The `useGPUAcceleration` setting enables hardware-accelerated encoding for faster conversions:
+
+- **`useGPUAcceleration: false`** (default): Uses CPU encoding with `libx265`
+- **`useGPUAcceleration: true`**: Uses GPU encoding for 3-10x faster conversion
+
+The `gpuEncoder` setting specifies which GPU encoder to use:
+
+- **`"auto"`** (default): Automatically detects and uses the best available GPU encoder
+- **`"nvidia"`**: Forces NVIDIA NVENC encoder (requires NVIDIA GPU with NVENC support)
+- **`"amd"`**: Forces AMD AMF encoder (requires AMD GPU with AMF support)
+- **`"intel"`**: Forces Intel QSV encoder (requires Intel GPU with QSV support)
+
+**Note**: GPU acceleration requires FFmpeg to be compiled with the appropriate hardware encoder support.
+
+#### Configurable Preset Options
+
+The `hevcPreset` setting controls the conversion speed vs. quality trade-off:
+
+| Preset | Speed | Quality | File Size | Use Case |
+|--------|-------|---------|-----------|----------|
+| `ultrafast` | ⚡ Fastest | 📉 Lowest | 📦 Largest | Quick testing, low quality needed |
+| `superfast` | 🏃 Very Fast | 📉 Low | 📦 Large | Real-time encoding |
+| `veryfast` | 🏃 Fast | 📉 Fair | 📦 Large | Quick conversions |
+| `faster` | 🏃‍♂️ Fast | ✅ Good | 📦 Medium-Large | Balanced speed/quality |
+| `fast` | 🚶 Fast | ✅ Good | 📦 Medium | Good balance |
+| `medium` | 🚶‍♂️ Medium | ✅ Good | 📦 Medium | **Default - Good balance** |
+| `slow` | 🐌 Slow | ✅ High | 📦 Small | High quality |
+| `slower` | 🐌 Slower | ✅ Very High | 📦 Smaller | Very high quality |
+| `veryslow` | 🐌 Slowest | ✅ Highest | 📦 Smallest | Best quality, longest time |
+
+### Conversion Settings
+
+- **Codec**: H.265 (HEVC) using libx265
+- **Preset**: Medium (balanced speed/quality)
+- **Quality**: CRF 23 (good quality, reasonable file size)
+- **Audio**: Copied without re-encoding
+- **Output**: `{filename}_H265.{extension}`
+
+### Monitoring Conversions
+
+When enabled, the service provides status endpoints:
+
+- **GET `/conversions`** - List all active conversions
+- **GET `/conversions/{jobId}`** - Get status of specific conversion
+
+### Conversion Logging
+
+All conversion activities are automatically logged to `conversion.log` in the same directory as your `config.json` file. This log includes:
+
+- 🎬 **Conversion start** - When a file begins conversion
+- 🔄 **Progress updates** - FFmpeg execution and status
+- ✅ **Successful completions** - When conversions finish successfully
+- ❌ **Failed conversions** - Error details and reasons
+- 🗑️ **File cleanup** - When original files are deleted
+- 💥 **Unexpected errors** - Detailed error information
+
+**Log file location**: Same directory as your `config.json` (typically `%USERPROFILE%\Documents\JellyfinAnilistSync\conversion.log`)
+
+**Progress Logging Features**:
+- **📊 Progress updates**: Logged every 2 minutes during conversion
+- **Percentage calculation**: Based on current video time vs. estimated total duration
+- **Time tracking**: Shows current progress time and estimated total duration
+- **Smart estimation**: Uses FFprobe to get actual video duration when possible
+- **Fallback duration**: Defaults to 20 minutes if duration cannot be determined
+
+**Example log entries**:
+```
+[2024-01-15 14:30:15] 🔄 Notified Jellyfin of Sonarr import completed for series: Anime Series Name
+[2024-01-15 14:30:16] 🎬 Starting H.265 conversion for: anime_episode_01.mkv (Job ID: abc123)
+[2024-01-15 14:30:17] 🔄 Conversion started for: anime_episode_01.mkv (Job ID: abc123)
+[2024-01-15 14:30:18] 🎬 Running FFmpeg conversion for: anime_episode_01.mkv with preset: medium
+[2024-01-15 14:32:20] 📊 Progress: 25.3% complete (00:02:02 / ~00:08:00) for anime_episode_01.mkv
+[2024-01-15 14:34:22] 📊 Progress: 50.1% complete (00:04:05 / ~00:08:00) for anime_episode_01.mkv
+[2024-01-15 14:36:24] 📊 Progress: 75.2% complete (00:06:07 / ~00:08:00) for anime_episode_01.mkv
+[2024-01-15 14:38:26] 📊 Progress: 100.0% complete for anime_episode_01.mkv
+[2024-01-15 14:38:26] ✅ FFmpeg conversion completed successfully: anime_episode_01_H265.mkv
+[2024-01-15 14:38:27] ✅ Conversion completed successfully: anime_episode_01.mkv -> anime_episode_01_H265.mkv (Duration: 00:08:10)
+[2024-01-15 14:38:28] 🔄 Notified Jellyfin of conversion completion for series: Anime Series Name
+[2024-01-15 14:38:29] 🗑️ Deleted original file after successful conversion: anime_episode_01.mkv
+```
+
+**Example log entries (no conversion needed)**:
+```
+[2024-01-15 14:30:15] 🔄 Notified Jellyfin of Sonarr import completed for series: Anime Series Name
+[2024-01-15 14:30:16] 💤 File already H.265, no conversion needed: anime_episode_01.mkv
+```
+
+### Benefits
+
+- **Storage savings**: H.265 typically reduces file size by 30-50%
+- **Quality preservation**: Maintains visual quality while reducing bandwidth
+- **Non-blocking**: Conversions run in background, don't affect other operations
+- **Automatic cleanup**: Removes original files after successful conversion
+- **Jellyfin integration**: Always refreshes metadata for new episodes, with additional refresh after conversion
+- **Universal notification**: Jellyfin is notified regardless of whether conversion is needed or performed
 
 ## Sonarr Integration (Optional)
 

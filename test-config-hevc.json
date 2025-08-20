@@ -1,0 +1,30 @@
+{
+  "jellyfin": {
+    "serverUrl": "http://localhost:8096",
+    "apiKey": "test-api-key",
+    "autoConvertToHEVC": true
+  },
+  "Sonarr": {
+    "Enabled": true,
+    "RefreshJellyfinOnImport": true,
+    "ApiKey": ""
+  },
+  "aniList": {
+    "globalToken": "test-token",
+    "userTokens": {
+      "TestUser": "test-user-token"
+    },
+    "userAutoAdd": {
+      "TestUser": true
+    },
+    "userBulkUpdate": {
+      "TestUser": false
+    }
+  },
+  "webhook": {
+    "host": "localhost",
+    "port": 5000,
+    "url": "http://localhost:5000"
+  },
+  "libraryNames": ["Animes"]
+}
